@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Blue Cuboid</title>
+    <title>Motion Control</title>
     <style>
         body {
             margin: 0;
@@ -12,9 +12,23 @@
         canvas {
             display: block;
         }
+        #calibration_btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 10px 20px;
+            background-color: #0066ff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            z-index: 10;
+        }
     </style>
 </head>
 <body>
+    <button id="calibration_btn">Calibrate</button>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
         // Scene setup
@@ -26,26 +40,46 @@
         document.body.appendChild(renderer.domElement);
         
         // Create blue cuboid
-        const geometry = new THREE.BoxGeometry(2, 1, 1);
-        const material = new THREE.MeshBasicMaterial({ color: 0x0066ff });
+        const geometry = new THREE.BoxGeometry(2, 0.6, 4);
+        const material = new THREE.MeshStandardMaterial({ color: 0x0066ff });
         const cuboid = new THREE.Mesh(geometry, material);
+        cuboid.rotation.order = 'YXZ';
         scene.add(cuboid);
+
+        // Add lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 5, 5);
+        scene.add(directionalLight);
         
         // Position camera
-        camera.position.z = 5;
+        camera.position.z = 4;
         
         // Animation loop
         function animate() {
-            requestAnimationFrame(animate);
-            
-            // Rotate cuboid
-            cuboid.rotation.x += 0.01;
-            cuboid.rotation.y += 0.01;
-            
+            requestAnimationFrame(animate);            
             renderer.render(scene, camera);
         }
         
         animate();
+
+        // websocket
+        var ws = new WebSocket("/?clientType=display");
+        var motion_data;
+        var alpha_zero = 0;
+        ws.onmessage = (event) => {
+            motion_data = JSON.parse(event.data);
+            cuboid.rotation.y = THREE.MathUtils.degToRad(motion_data.alpha - alpha_zero);
+            cuboid.rotation.x = THREE.MathUtils.degToRad(motion_data.beta);
+            cuboid.rotation.z = -THREE.MathUtils.degToRad(motion_data.gamma);
+        };
+
+        // calibration
+        document.getElementById('calibration_btn').addEventListener('click', () => {
+            alpha_zero = motion_data.alpha;
+        });
         
         // Handle window resize
         window.addEventListener('resize', () => {

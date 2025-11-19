@@ -1,28 +1,30 @@
 'use strict';
 
-const fs = require('filesystem');
+const fs = require('fs');
 const express = require('express');
 const https = require('https');
+const http = require('http');
 const url = require('url');
 
-const PORT = process.env.PORT || 3000;
 const app = express()
   .get('/', (req, res) => res.sendFile('controller.html', { root: __dirname }))
   .get('/app', (req, res) => res.sendFile('application.html', { root: __dirname }));
 
-var privateKey  = fs.readFileSync('sslcert/server.key', 'utf8');
-var certificate = fs.readFileSync('sslcert/server.crt', 'utf8');
+var privateKey  = fs.readFileSync('sslcert/key.pem', 'utf8');
+var certificate = fs.readFileSync('sslcert/cert.pem', 'utf8');
 var credentials = {key: privateKey, cert: certificate};
-var httpsServer = https.createServer(credentials, app);
 
-httpsServer.listen(PORT, () => console.log(`Listening on ${PORT}`));
+var http_server = http.createServer(app);
+var https_server = https.createServer(credentials, app);
+http_server.listen(8080);
+https_server.listen(8443);
 
 
 ////////////////////////////////////////////////////////////////////
 
 
 const WebSocket = require("ws");
-const wss = new WebSocket.Server({ server: httpsServer });
+const wss = new WebSocket.Server({ server: https_server });
 
 var sockets = {"display": null, "controller": null}
 
@@ -44,9 +46,11 @@ wss.on("connection", (ws, req) => {
 
   // relay data when both sockets are connected
   sockets[client_type] = ws;
-  if (sockets['display'] != null && sockets['controller'] != null) {
+  if (client_type == "controller") {
     sockets['controller'].onmessage = (event) => {
+      if (sockets['display'] != null) {
         sockets['display'].send(event.data);
+      }
     };
   }
 
@@ -56,3 +60,5 @@ wss.on("connection", (ws, req) => {
     sockets[client_type] = null;
   });
 });
+
+
